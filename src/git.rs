@@ -26,13 +26,43 @@ pub struct Repository {
 }
 
 impl Repository {
-    pub fn discover(path: &Path) -> Self {
+    pub fn discover(path: &Path) -> Option<Self> {
+        log::trace!("Checking for Git instance: {:?}", path);
+        if let Some(repository) = Repository::scan(path) {
+            return Some(repository);
+        }
 
+        match path.parent() {
+            Some(parent) => Repository::discover(parent),
+            None => None
+        }
     }
 
-    pub fn git_status(path: &Path) -> Result<GitStatus> {
+    fn scan(path: &Path) -> Option<Self> {
+        let git_dir = path.join(".git");
+        if !git_dir.exists() {
+            return None;
+        }
+
+        log::trace!("Git repository found");
+        Some(Repository {
+            git_dir,
+            root_dir: path.into(),
+            branch: OnceCell::new(),
+            status: OnceCell::new()
+        })
+    }
+
+    fn status(&self) -> &GitStatus {
+        self.status.get_or_init(|| self.git_status())
+    }
+
+    pub fn git_status(&self) -> GitStatus {
         // TODO: Don't bother running "git status" if no ".git" in parent directories
-        let output = utils::exec_cmd("git", &["status", "--porcelain"])?.stdout;
+        let output = match utils::exec_cmd("git", &["status", "--porcelain"]) {
+            Some(output) => output.stdout,
+            None => return Default::default()
+        };
         parse_porcelain_output(output)
     }
 }
@@ -44,7 +74,7 @@ impl Repository {
 ///  M src/prompt.rs
 ///  M src/main.rs
 /// ```
-fn parse_porcelain_output<S: Into<String>>(porcelain: S) -> Result<GitStatus> {
+fn parse_porcelain_output<S: Into<String>>(porcelain: S) -> GitStatus {
     let porcelain_str = porcelain.into();
     let porcelain_lines = porcelain_str.lines();
     let mut vcs_status: GitStatus = Default::default();
@@ -66,7 +96,7 @@ fn parse_porcelain_output<S: Into<String>>(porcelain: S) -> Result<GitStatus> {
         }
     });
 
-    Ok(vcs_status)
+    vcs_status
 }
 
 /// Update the cumulative git status, given the "short format" letter of a file's status
@@ -88,10 +118,11 @@ fn increment_git_status(vcs_status: &mut GitStatus, letter: char) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io;
 
     #[test]
-    fn test_parse_empty_porcelain_output() -> Result<()> {
-        let output = parse_porcelain_output("")?;
+    fn test_parse_empty_porcelain_output() -> io::Result<()> {
+        let output = parse_porcelain_output("");
 
         let expected: GitStatus = Default::default();
         assert_eq!(output, expected);
@@ -99,13 +130,13 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_porcelain_output() -> Result<()> {
+    fn test_parse_porcelain_output() -> io::Result<()> {
         let output = parse_porcelain_output(
             "M src/prompt.rs
 MM src/main.rs
 A src/formatter.rs
 ? README.md",
-        )?;
+        );
 
         let expected = GitStatus {
             modified: 2,

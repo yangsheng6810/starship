@@ -4,7 +4,7 @@ use crate::modules;
 use crate::git::Repository;
 
 use clap::ArgMatches;
-use git2::{ErrorCode::UnbornBranch, Repository, RepositoryState};
+// use git2::{ErrorCode::UnbornBranch, Repository, RepositoryState};
 use once_cell::sync::OnceCell;
 use std::collections::{HashMap, HashSet};
 use std::env;

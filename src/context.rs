@@ -1,7 +1,8 @@
 use crate::config::StarshipConfig;
 use crate::module::Module;
-
 use crate::modules;
+use crate::git::Repository;
+
 use clap::ArgMatches;
 use git2::{ErrorCode::UnbornBranch, Repository, RepositoryState};
 use once_cell::sync::OnceCell;
@@ -30,7 +31,7 @@ pub struct Context<'a> {
     pub properties: HashMap<&'a str, String>,
 
     /// Private field to store Git information for modules who need it
-    repo: OnceCell<Repo>,
+    repo: OnceCell<Option<Repository>>,
 
     /// The shell the user is assumed to be running
     pub shell: Shell,

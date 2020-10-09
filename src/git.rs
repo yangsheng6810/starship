@@ -1,20 +1,23 @@
 use once_cell::sync::OnceCell;
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::utils;
 
 #[derive(Default, Debug, PartialEq)]
 pub struct GitStatus {
-    untracked: u8,
-    added: u8,
-    modified: u8,
-    renamed: u8,
-    deleted: u8,
-    stashed: u8,
-    unmerged: u8,
-    ahead: u8,
-    behind: u8,
-    diverged: u8,
+    pub untracked: u8,
+    pub added: u8,
+    pub modified: u8,
+    pub renamed: u8,
+    pub deleted: u8,
+    pub stashed: u8,
+    pub unmerged: u8,
+    pub ahead: u8,
+    pub behind: u8,
+    pub diverged: u8,
+    pub conflicted: u8,
+    pub staged: u8,
 }
 
 #[derive(Debug)]
@@ -22,7 +25,7 @@ pub struct Repository {
     git_dir: PathBuf,
     root_dir: PathBuf,
     branch: OnceCell<String>,
-    status: OnceCell<GitStatus>
+    status: OnceCell<GitStatus>,
 }
 
 impl Repository {
@@ -34,7 +37,7 @@ impl Repository {
 
         match path.parent() {
             Some(parent) => Repository::discover(parent),
-            None => None
+            None => None,
         }
     }
 
@@ -49,21 +52,36 @@ impl Repository {
             git_dir,
             root_dir: path.into(),
             branch: OnceCell::new(),
-            status: OnceCell::new()
+            status: OnceCell::new(),
         })
     }
 
-    fn status(&self) -> &GitStatus {
-        self.status.get_or_init(|| self.git_status())
+    pub fn status(&self) -> &GitStatus {
+        self.status.get_or_init(|| self.get_status())
     }
 
-    pub fn git_status(&self) -> GitStatus {
-        // TODO: Don't bother running "git status" if no ".git" in parent directories
+    fn get_status(&self) -> GitStatus {
         let output = match utils::exec_cmd("git", &["status", "--porcelain"]) {
             Some(output) => output.stdout,
-            None => return Default::default()
+            None => return Default::default(),
         };
         parse_porcelain_output(output)
+    }
+
+    pub fn branch(&self) -> &String {
+        self.branch.get_or_init(|| match self.get_branch() {
+            Some(branch) => branch,
+            None => String::from("HEAD"),
+        })
+    }
+
+    fn get_branch(&self) -> Option<String> {
+        let head_file = self.git_dir.join("HEAD");
+        let head_contents = fs::read_to_string(head_file).ok()?;
+        let branch_start = head_contents.rfind('/')?;
+        let branch_name = &head_contents[branch_start + 1..];
+        let trimmed_branch_name = branch_name.trim_end();
+        Some(trimmed_branch_name.into())
     }
 }
 
@@ -88,10 +106,11 @@ fn parse_porcelain_output<S: Into<String>>(porcelain: S) -> GitStatus {
             characters.next().unwrap_or(' '),
         );
 
+        // TODO: Revisit conflict and staged logic
         if letter_codes.0 == letter_codes.1 {
-            increment_git_status(&mut vcs_status, letter_codes.0);
+            vcs_status.conflicted += 1
         } else {
-            increment_git_status(&mut vcs_status, letter_codes.0);
+            increment_git_status(&mut vcs_status, 'S');
             increment_git_status(&mut vcs_status, letter_codes.1);
         }
     });
@@ -113,7 +132,6 @@ fn increment_git_status(vcs_status: &mut GitStatus, letter: char) {
         _ => (),
     }
 }
-
 
 #[cfg(test)]
 mod tests {

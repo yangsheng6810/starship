@@ -1,7 +1,7 @@
 use crate::config::StarshipConfig;
+use crate::git::Repository;
 use crate::module::Module;
 use crate::modules;
-use crate::git::Repository;
 
 use clap::ArgMatches;
 // use git2::{ErrorCode::UnbornBranch, Repository, RepositoryState};
@@ -157,28 +157,9 @@ impl<'a> Context<'a> {
     }
 
     /// Will lazily get repo root and branch when a module requests it.
-    pub fn get_repo(&self) -> Result<&Repo, std::io::Error> {
+    pub fn repo(&self) -> &Option<Repository> {
         self.repo
-            .get_or_try_init(|| -> Result<Repo, std::io::Error> {
-                let repository = if env::var("GIT_DIR").is_ok() {
-                    Repository::open_from_env().ok()
-                } else {
-                    Repository::discover(&self.current_dir).ok()
-                };
-                let branch = repository
-                    .as_ref()
-                    .and_then(|repo| get_current_branch(repo));
-                let root = repository
-                    .as_ref()
-                    .and_then(|repo| repo.workdir().map(Path::to_path_buf));
-                let state = repository.as_ref().map(|repo| repo.state());
-
-                Ok(Repo {
-                    branch,
-                    root,
-                    state,
-                })
-            })
+            .get_or_init(|| Repository::discover(&self.current_dir))
     }
 
     pub fn dir_contents(&self) -> Result<&DirContents, std::io::Error> {
@@ -300,19 +281,6 @@ impl DirContents {
     }
 }
 
-pub struct Repo {
-    /// If `current_dir` is a git repository or is contained within one,
-    /// this is the current branch name of that repo.
-    pub branch: Option<String>,
-
-    /// If `current_dir` is a git repository or is contained within one,
-    /// this is the path to the root of that repo.
-    pub root: Option<PathBuf>,
-
-    /// State
-    pub state: Option<RepositoryState>,
-}
-
 // A struct of Criteria which will be used to verify current PathBuf is
 // of X language, criteria can be set via the builder pattern
 pub struct ScanDir<'a> {
@@ -345,36 +313,6 @@ impl<'a> ScanDir<'a> {
             || self.dir_contents.has_any_folder(self.folders)
             || self.dir_contents.has_any_file_name(self.files)
     }
-}
-
-fn get_current_branch(repository: &Repository) -> Option<String> {
-    let head = match repository.head() {
-        Ok(reference) => reference,
-        Err(e) => {
-            return if e.code() == UnbornBranch {
-                // HEAD should only be an unborn branch if the repository is fresh,
-                // in that case read directly from `.git/HEAD`
-                let mut head_path = repository.path().to_path_buf();
-                head_path.push("HEAD");
-
-                // get first line, then last path segment
-                fs::read_to_string(&head_path)
-                    .ok()?
-                    .lines()
-                    .next()?
-                    .trim()
-                    .split('/')
-                    .last()
-                    .map(|r| r.to_owned())
-            } else {
-                None
-            };
-        }
-    };
-
-    let shorthand = head.shorthand();
-
-    shorthand.map(std::string::ToString::to_string)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

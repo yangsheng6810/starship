@@ -20,12 +20,23 @@ pub struct GitStatus {
     pub staged: usize,
 }
 
-#[derive(Debug)]
+#[derive(PartialEq, Eq, Debug)]
+pub enum GitState {
+    Clean,
+    Merge,
+    Revert,
+    CherryPick,
+    Bisect,
+    Rebase
+}
+
+#[derive(Debug, Default)]
 pub struct Repository {
     pub git_dir: PathBuf,
     pub root_dir: PathBuf,
     branch: OnceCell<String>,
     status: OnceCell<GitStatus>,
+    state: OnceCell<GitState>,
     hash: OnceCell<Option<String>>,
 }
 
@@ -52,9 +63,7 @@ impl Repository {
         Some(Repository {
             git_dir,
             root_dir: path.into(),
-            branch: OnceCell::new(),
-            status: OnceCell::new(),
-            hash: OnceCell::new(),
+            ..Default::default()
         })
     }
 
@@ -94,11 +103,24 @@ impl Repository {
         Some(trimmed_branch_name.into())
     }
 
-    pub fn hash(&self) -> &Option<String> {
-        self.hash.get_or_init(|| self.get_hash())
+    pub fn state(&self) -> &GitState {
+        self.state.get_or_init(|| self.get_state())
+    } 
+
+    fn get_state(&self) -> GitState {
+        let merge_file = self.git_dir.join("MERGE_MSG");
+        if merge_file.exists() {
+            return GitState::Merge
+        }
+
+        GitState::Clean
     }
 
-    fn get_hash(&self) -> Option<String> {
+    pub fn commit_hash(&self) -> &Option<String> {
+        self.hash.get_or_init(|| self.get_commit_hash())
+    }
+
+    fn get_commit_hash(&self) -> Option<String> {
         let output = utils::exec_cmd(
             "git",
             &[

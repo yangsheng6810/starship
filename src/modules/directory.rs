@@ -42,12 +42,11 @@ pub fn module<'a>(context: &'a Context) -> Option<Module<'a>> {
     let home_dir = dirs_next::home_dir().unwrap();
     log::debug!("Current directory: {:?}", current_dir);
 
-    let repo = &context.get_repo().ok()?;
-    let dir_string = match &repo.root {
-        Some(repo_root) if config.truncate_to_repo && (repo_root != &home_dir) => {
-            log::debug!("Repo root: {:?}", repo_root);
+    let dir_string = match context.repo() {
+        Some(repo) if config.truncate_to_repo && (&repo.root_dir != &home_dir) => {
+            log::debug!("Repo root: {:?}", repo.root_dir);
             // Contract the path to the git repo root
-            contract_repo_path(current_dir, repo_root)
+            contract_repo_path(current_dir, &repo.root_dir)
                 .unwrap_or_else(|| contract_path(current_dir, &home_dir, HOME_SYMBOL))
         }
         // Contract the path to the home directory

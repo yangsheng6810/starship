@@ -6,26 +6,27 @@ use crate::utils;
 
 #[derive(Default, Debug, PartialEq)]
 pub struct GitStatus {
-    pub untracked: u8,
-    pub added: u8,
-    pub modified: u8,
-    pub renamed: u8,
-    pub deleted: u8,
-    pub stashed: u8,
-    pub unmerged: u8,
-    pub ahead: u8,
-    pub behind: u8,
-    pub diverged: u8,
-    pub conflicted: u8,
-    pub staged: u8,
+    pub untracked: usize,
+    pub added: usize,
+    pub modified: usize,
+    pub renamed: usize,
+    pub deleted: usize,
+    pub stashed: usize,
+    pub unmerged: usize,
+    pub ahead: usize,
+    pub behind: usize,
+    pub diverged: usize,
+    pub conflicted: usize,
+    pub staged: usize,
 }
 
 #[derive(Debug)]
 pub struct Repository {
-    git_dir: PathBuf,
-    root_dir: PathBuf,
+    pub git_dir: PathBuf,
+    pub root_dir: PathBuf,
     branch: OnceCell<String>,
     status: OnceCell<GitStatus>,
+    hash: OnceCell<Option<String>>,
 }
 
 impl Repository {
@@ -53,6 +54,7 @@ impl Repository {
             root_dir: path.into(),
             branch: OnceCell::new(),
             status: OnceCell::new(),
+            hash: OnceCell::new(),
         })
     }
 
@@ -61,7 +63,15 @@ impl Repository {
     }
 
     fn get_status(&self) -> GitStatus {
-        let output = match utils::exec_cmd("git", &["status", "--porcelain"]) {
+        let output = match utils::exec_cmd(
+            "git",
+            &[
+                "--git-dir",
+                self.git_dir.to_str().unwrap(),
+                "status",
+                "--porcelain",
+            ],
+        ) {
             Some(output) => output.stdout,
             None => return Default::default(),
         };
@@ -82,6 +92,23 @@ impl Repository {
         let branch_name = &head_contents[branch_start + 1..];
         let trimmed_branch_name = branch_name.trim_end();
         Some(trimmed_branch_name.into())
+    }
+
+    pub fn hash(&self) -> &Option<String> {
+        self.hash.get_or_init(|| self.get_hash())
+    }
+
+    fn get_hash(&self) -> Option<String> {
+        let output = utils::exec_cmd(
+            "git",
+            &[
+                "--git-dir",
+                self.git_dir.to_str().unwrap(),
+                "rev-parse",
+                "HEAD",
+            ],
+        )?;
+        Some(output.stdout)
     }
 }
 

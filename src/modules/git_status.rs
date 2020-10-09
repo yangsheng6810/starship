@@ -95,7 +95,7 @@ where
     }
 }
 
-fn format_count(format_str: &str, config_path: &str, count: u8) -> Option<Vec<Segment>> {
+fn format_count(format_str: &str, config_path: &str, count: usize) -> Option<Vec<Segment>> {
     if count == 0 {
         return None;
     }

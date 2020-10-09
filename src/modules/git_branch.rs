@@ -24,8 +24,8 @@ pub fn module<'a>(context: &'a Context) -> Option<Module<'a>> {
         config.truncation_length as usize
     };
 
-    let repo = context.get_repo().ok()?;
-    let branch_name = repo.branch.as_ref()?;
+    let repo = context.repo().as_ref()?;
+    let branch_name = repo.branch();
 
     let mut graphemes: Vec<&str> = branch_name.graphemes(true).collect();
     let trunc_len = len.min(graphemes.len());

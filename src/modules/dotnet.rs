@@ -65,7 +65,7 @@ pub fn module<'a>(context: &'a Context) -> Option<Module<'a>> {
             .map(|variable| match variable {
                 "version" => {
                     let version = if enable_heuristic {
-                        let repo_root = context.get_repo().ok().and_then(|r| r.root.as_deref());
+                        let repo_root = context.repo().map(|r| r.root_dir);
                         estimate_dotnet_version(&dotnet_files, &context.current_dir, repo_root)
                     } else {
                         get_version_from_cli()
@@ -138,7 +138,7 @@ fn get_tfm_from_project_file(path: &Path) -> Option<String> {
 fn estimate_dotnet_version(
     files: &[DotNetFile],
     current_dir: &Path,
-    repo_root: Option<&Path>,
+    repo_root: Option<PathBuf>,
 ) -> Option<Version> {
     let get_file_of_type = |t: FileType| files.iter().find(|f| f.file_type == t);
 
@@ -173,7 +173,7 @@ fn estimate_dotnet_version(
 ///       (Unless there is a git repository, and the parent is above the root of that repository)
 ///     - The root of the git repository
 ///       (If there is one)
-fn try_find_nearby_global_json(current_dir: &Path, repo_root: Option<&Path>) -> Option<Version> {
+fn try_find_nearby_global_json(current_dir: &Path, repo_root: Option<PathBuf>) -> Option<Version> {
     let current_dir_is_repo_root = repo_root.map(|r| r == current_dir).unwrap_or(false);
     let parent_dir = if current_dir_is_repo_root {
         // Don't scan the parent directory if it's above the root of a git repository

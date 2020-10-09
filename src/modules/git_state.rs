@@ -16,8 +16,6 @@ pub fn module<'a>(context: &'a Context) -> Option<Module<'a>> {
     let repo = context.repo().as_ref()?;
     let repo_root = repo.root_dir;
 
-    unimplemented!();
-
     let state_description = get_state_description(repo_state, repo_root, &config)?;
 
     let parsed = StringFormatter::new(config.format).and_then(|formatter| {

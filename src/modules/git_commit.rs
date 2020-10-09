@@ -21,7 +21,11 @@ pub fn module<'a>(context: &'a Context) -> Option<Module<'a>> {
             .map(|variable| match variable {
                 "hash" => repo
                     .hash()
-                    .map(|h| h.chars().take(config.commit_hash_length).collect::<String>())
+                    .map(|h| {
+                        h.chars()
+                            .take(config.commit_hash_length)
+                            .collect::<String>()
+                    })
                     .map(Ok),
                 _ => None,
             })

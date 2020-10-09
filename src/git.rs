@@ -27,7 +27,8 @@ pub enum GitState {
     Revert,
     CherryPick,
     Bisect,
-    Rebase
+    Rebase,
+    RebaseMerge(String, String),
 }
 
 #[derive(Debug, Default)]
@@ -105,12 +106,26 @@ impl Repository {
 
     pub fn state(&self) -> &GitState {
         self.state.get_or_init(|| self.get_state())
-    } 
+    }
 
     fn get_state(&self) -> GitState {
         let merge_file = self.git_dir.join("MERGE_MSG");
         if merge_file.exists() {
-            return GitState::Merge
+            return GitState::Merge;
+        }
+
+        let rebase_file = self.git_dir.join("REBASE_HEAD");
+        if rebase_file.exists() {
+            let current_file = self.git_dir.join("rebase-merge/msgnum");
+            let current_value = fs::read_to_string(current_file).ok();
+
+            let end_file = self.git_dir.join("rebase-merge/end");
+            let end_value = fs::read_to_string(end_file).ok();
+
+            match (current_value, end_value) {
+                (Some(current), Some(end)) => return GitState::RebaseMerge(current, end),
+                _ => return GitState::Rebase,
+            }
         }
 
         GitState::Clean
